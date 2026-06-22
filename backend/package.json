@@ -1,0 +1,22 @@
+{
+  "name": "myanimemusiclist-backend",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Express API that merges AnimeThemes (openings/endings) and VGMdb (soundtrack albums) search results for MyAnimeMusicList.",
+  "scripts": {
+    "dev": "node --watch server.js",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "axios": "^1.18.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "node-fetch": "^3.3.2",
+    "react-image-crop": "^11.0.10"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
