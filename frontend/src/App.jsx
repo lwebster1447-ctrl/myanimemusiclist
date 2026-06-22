@@ -12,6 +12,11 @@ import SetupUsernamePage from "./pages/SetupUsernamePage.jsx";
 import UserSearchPage from "./pages/UserSearchPage.jsx";
 import UserProfilePage from "./pages/UserProfilePage.jsx";
 import UserMyListPage from "./pages/UserMyListPage.jsx";
+import PrivacyPolicy from "./pages/PrivacyPolicy.jsx";
+import AdSenseLoader from "./components/AdSenseLoader.jsx";
+import ForumsPage from "./pages/ForumsPage.jsx";
+import CreateForumPage from "./pages/CreateForumPage.jsx";
+import ForumPostPage from "./pages/ForumPostPage.jsx";
 
 export default function App() {
   return (
@@ -19,6 +24,7 @@ export default function App() {
       <BrowserRouter>
         <div className="app-shell">
           <Navbar />
+          <AdSenseLoader />
           <main className="main-content">
             <Routes>
               <Route path="/" element={<SearchPage />} />
@@ -43,6 +49,17 @@ export default function App() {
               <Route path="/users" element={<UserSearchPage />} />
               <Route path="/user/:username" element={<UserProfilePage />} />
               <Route path="/user/:username/my-list" element={<UserMyListPage />} />
+              <Route path="/privacy" element={<PrivacyPolicy />} />
+              <Route path="/forums" element={<ForumsPage />} />
+              <Route
+                path="/forums/create"
+                element={
+                  <ProtectedRoute>
+                    <CreateForumPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route path="/forums/:postId" element={<ForumPostPage />} />
             </Routes>
           </main>
           <Footer />

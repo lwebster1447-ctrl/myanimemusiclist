@@ -1,4 +1,6 @@
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000";
+// frontend/src/services/api.js
+// Hard-coded for production - change this to your Render backend URL
+const API_URL = "https://myanimemusiclist.onrender.com";
 
 /**
  * Search for openings/endings + soundtrack albums via our own backend.

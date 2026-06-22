@@ -21,12 +21,20 @@ export default function Navbar() {
   return (
     <header className="navbar">
       <Link to="/" className="navbar-brand">
-        <span className="reel"></span>
-        MyAnimeMusicList
+        <img 
+          src="/logo.png" 
+          alt="MyAnimeMusicList" 
+          className="navbar-logo"
+        />
+        <span>MyAnimeMusicList</span>
       </Link>
+
       <nav className="navbar-links">
         <Link to="/" className={location.pathname === "/" ? "active" : ""}>
           Search
+        </Link>
+        <Link to="/forums" className={location.pathname === "/forums" || location.pathname.startsWith("/forums/") ? "active" : ""}>
+          Forums
         </Link>
         {user && (
           <>
@@ -39,6 +47,7 @@ export default function Navbar() {
           </>
         )}
       </nav>
+
       <div className="navbar-user">
         {user ? (
           <>

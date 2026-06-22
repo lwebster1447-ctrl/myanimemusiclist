@@ -1,4 +1,6 @@
 // frontend/src/components/Footer.jsx
+import { Link } from "react-router-dom";
+
 export default function Footer() {
   const currentYear = new Date().getFullYear();
 
@@ -20,6 +22,10 @@ export default function Footer() {
         >
           Website Improvement Suggestions
         </a>
+        <span className="footer-divider">|</span>
+        <Link to="/privacy" className="footer-link">
+          Privacy Policy
+        </Link>
       </div>
     </footer>
   );

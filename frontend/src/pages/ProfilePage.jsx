@@ -19,6 +19,7 @@ import {
 } from "@dnd-kit/sortable";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { subscribeToForumPostsByUser } from "../services/forum.js";
 
 // MyAnimeList style rating labels with colors
 const RATING_LABELS = {
@@ -140,6 +141,9 @@ export default function ProfilePage() {
   const [favorites, setFavorites] = useState([]);
   const [currentFavorite, setCurrentFavorite] = useState(null);
   const [showFavoritePicker, setShowFavoritePicker] = useState(false);
+  const [forumPosts, setForumPosts] = useState([]);
+  const [forumPostsCount, setForumPostsCount] = useState(0);
+  const [showForumPosts, setShowForumPosts] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -157,6 +161,18 @@ export default function ProfilePage() {
       fetchUsersDetails();
     }
   }, [userProfile]);
+
+  // Real-time listener for user's forum posts
+  useEffect(() => {
+    if (!user) return;
+    
+    const unsubscribe = subscribeToForumPostsByUser(user.uid, (posts) => {
+      setForumPosts(posts);
+      setForumPostsCount(posts.length);
+    });
+    
+    return unsubscribe;
+  }, [user]);
 
   const fetchUsersDetails = async () => {
     if (!userProfile) return;
@@ -236,6 +252,16 @@ export default function ProfilePage() {
 
   const displayedFavorites = favorites.slice(0, 10);
 
+  const formatDate = (timestamp) => {
+    if (!timestamp) return "Unknown date";
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  };
+
   if (!userProfile) {
     return (
       <div className="page">
@@ -261,7 +287,12 @@ export default function ProfilePage() {
         
         <div className="profile-info">
           <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-            <h1 style={{ margin: 0 }}>@{userProfile.username}</h1>
+            <h1 
+              style={{ margin: 0 }} 
+              className={userProfile.username === "admin" ? "admin-username" : ""}
+            >
+              @{userProfile.username}
+            </h1>
             <button 
               className="btn btn-sm btn-ghost" 
               onClick={() => setIsEditingUsername(true)}
@@ -326,6 +357,13 @@ export default function ProfilePage() {
                 <span className="stat-number">{displayedFavorites.length || 0}</span>
                 <span className="stat-label">Favorites</span>
               </div>
+              <button 
+                className="stat-btn"
+                onClick={() => setShowForumPosts(!showForumPosts)}
+              >
+                <span className="stat-number">{forumPostsCount}</span>
+                <span className="stat-label">Forum Posts</span>
+              </button>
             </div>
 
             {/* Current Favorite Song */}
@@ -417,6 +455,34 @@ export default function ProfilePage() {
                 <p className="text-muted">Not following anyone yet</p>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {showForumPosts && (
+        <div className="popup-overlay" onClick={() => setShowForumPosts(false)}>
+          <div className="popup-content" onClick={(e) => e.stopPropagation()}>
+            <h3>My Forum Posts</h3>
+            <button className="popup-close" onClick={() => setShowForumPosts(false)}>×</button>
+            {forumPosts.length === 0 ? (
+              <p className="text-muted">You haven't created any forum posts yet.</p>
+            ) : (
+              <div className="user-list">
+                {forumPosts.map(post => (
+                  <Link 
+                    key={post.id} 
+                    to={`/forums/${post.id}`} 
+                    className="user-list-item"
+                    onClick={() => setShowForumPosts(false)}
+                  >
+                    <div style={{ fontWeight: 600 }}>{post.songTitle}</div>
+                    <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+                      {post.animeName} • {formatDate(post.createdAt)} • 💬 {post.commentCount || 0} comments
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

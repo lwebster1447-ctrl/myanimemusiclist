@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import ProfilePicture from "../components/ProfilePicture.jsx";
+import { subscribeToForumPostsByUser } from "../services/forum.js";
 
 const RATING_LABELS = {
   10: { label: "10 - Masterpiece", color: "#ff2d8a" },
@@ -44,6 +45,9 @@ export default function UserProfilePage() {
   const [showFollowers, setShowFollowers] = useState(false);
   const [showFollowing, setShowFollowing] = useState(false);
   const [isFollowingState, setIsFollowingState] = useState(false);
+  const [forumPosts, setForumPosts] = useState([]);
+  const [forumPostsCount, setForumPostsCount] = useState(0);
+  const [showForumPosts, setShowForumPosts] = useState(false);
 
   useEffect(() => {
     async function loadUser() {
@@ -58,6 +62,18 @@ export default function UserProfilePage() {
     }
     loadUser();
   }, [username, userProfile]);
+
+  // Real-time listener for target user's forum posts
+  useEffect(() => {
+    if (!targetUser) return;
+    
+    const unsubscribe = subscribeToForumPostsByUser(targetUser.uid, (posts) => {
+      setForumPosts(posts);
+      setForumPostsCount(posts.length);
+    });
+    
+    return unsubscribe;
+  }, [targetUser]);
 
   const fetchUsersDetails = async (userData) => {
     if (!userData) return;
@@ -83,9 +99,7 @@ export default function UserProfilePage() {
     if (!targetUser || !user) return;
     try {
       await toggleFollow(targetUser.uid);
-      // Update the follow state immediately
       setIsFollowingState(!isFollowingState);
-      // Refresh the target user data after follow/unfollow
       const updatedUser = await getUserById(targetUser.uid);
       if (updatedUser) {
         setTargetUser(updatedUser);
@@ -94,6 +108,16 @@ export default function UserProfilePage() {
     } catch (error) {
       console.error('Error toggling follow:', error);
     }
+  };
+
+  const formatDate = (timestamp) => {
+    if (!timestamp) return "Unknown date";
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
   };
 
   if (loading) {
@@ -130,7 +154,12 @@ export default function UserProfilePage() {
         />
         
         <div className="profile-info">
-          <h1 style={{ margin: 0 }}>@{targetUser.username}</h1>
+          <h1 
+            style={{ margin: 0 }} 
+            className={targetUser.username === "admin" ? "admin-username" : ""}
+          >
+            @{targetUser.username}
+          </h1>
           
           <div className="profile-stats">
             <button 
@@ -151,6 +180,13 @@ export default function UserProfilePage() {
               <span className="stat-number">{targetUser.favoriteSongs?.length || 0}</span>
               <span className="stat-label">Favorites</span>
             </div>
+            <button 
+              className="stat-btn"
+              onClick={() => setShowForumPosts(!showForumPosts)}
+            >
+              <span className="stat-number">{forumPostsCount}</span>
+              <span className="stat-label">Forum Posts</span>
+            </button>
           </div>
 
           {targetUser.currentFavorite && (
@@ -225,6 +261,35 @@ export default function UserProfilePage() {
                 <p className="text-muted">Not following anyone yet</p>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Forum Posts Popup */}
+      {showForumPosts && (
+        <div className="popup-overlay" onClick={() => setShowForumPosts(false)}>
+          <div className="popup-content" onClick={(e) => e.stopPropagation()}>
+            <h3>@{targetUser.username}'s Forum Posts</h3>
+            <button className="popup-close" onClick={() => setShowForumPosts(false)}>×</button>
+            {forumPosts.length === 0 ? (
+              <p className="text-muted">This user hasn't created any forum posts yet.</p>
+            ) : (
+              <div className="user-list">
+                {forumPosts.map(post => (
+                  <Link 
+                    key={post.id} 
+                    to={`/forums/${post.id}`} 
+                    className="user-list-item"
+                    onClick={() => setShowForumPosts(false)}
+                  >
+                    <div style={{ fontWeight: 600 }}>{post.songTitle}</div>
+                    <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+                      {post.animeName} • {formatDate(post.createdAt)} • 💬 {post.commentCount || 0} comments
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
