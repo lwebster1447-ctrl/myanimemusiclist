@@ -16,37 +16,28 @@ import { dirname, join } from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Load service account key
+// Load service account key using readFileSync (Node.js 18+ compatible)
 let serviceAccount;
+let db = null;
+
 try {
   const keyPath = join(__dirname, 'serviceAccountKey.json');
   const keyFile = readFileSync(keyPath, 'utf8');
   serviceAccount = JSON.parse(keyFile);
   console.log('✅ Service account key loaded');
+  
+  // Initialize Firebase Admin
+  initializeApp({
+    credential: cert(serviceAccount),
+  });
+  db = getFirestore();
+  console.log('✅ Firebase Admin initialized');
 } catch (error) {
   console.error('❌ Failed to load service account key:', error.message);
-  // Continue without Firebase Admin - some features won't work
-}
-
-// Initialize Firebase Admin SDK
-let db;
-try {
-  if (serviceAccount) {
-    initializeApp({
-      credential: cert(serviceAccount),
-    });
-    db = getFirestore();
-    console.log('✅ Firebase Admin initialized');
-  } else {
-    console.warn('⚠️ Firebase Admin not initialized - forum endpoints will not work');
-  }
-} catch (error) {
-  console.error('❌ Firebase Admin initialization failed:', error.message);
 }
 
 const PORT = process.env.PORT || 4000;
 
-// Allow multiple origins
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:4000",
@@ -56,7 +47,6 @@ const allowedOrigins = [
 
 const app = express();
 
-// CORS configuration
 app.use(cors({
   origin: function (origin, callback) {
     if (!origin) return callback(null, true);
@@ -74,18 +64,9 @@ app.use(express.json());
 
 // ===== CENSORSHIP FUNCTION =====
 const CENSORED_WORDS = [
-  "fuck",
-  "shit",
-  "cunt",
-  "faggot",
-  "fag",
-  "nigger",
-  "nigga",
-  "retard",
-  "tard",
-  "kys",
-  "chink",
-  "jap"
+  "fuck", "shit", "cunt", "faggot", "fag", 
+  "nigger", "nigga", "retard", "tard", "kys", 
+  "chink", "jap", "kike", "spaz", "nibber"
 ];
 
 function censorText(text) {
@@ -170,7 +151,7 @@ app.get("/api/search", async (req, res) => {
   }
 });
 
-// ===== FORUM ENDPOINTS (only work if Firebase Admin is initialized) =====
+// ===== FORUM ENDPOINTS =====
 
 // Create a forum post
 app.post("/api/forum/posts", async (req, res) => {
@@ -186,6 +167,8 @@ app.post("/api/forum/posts", async (req, res) => {
     }
 
     const censoredContent = censorText(content.trim());
+    console.log(`📝 Original: "${content.trim()}"`);
+    console.log(`📝 Censored: "${censoredContent}"`);
     
     const newPost = {
       uid,
@@ -264,9 +247,12 @@ app.post("/api/forum/posts/:postId/comments", async (req, res) => {
     const commentRef = await db.collection("forums").doc(postId).collection("comments").add(newComment);
     
     // Increment comment count
-    await db.collection("forums").doc(postId).update({
-      commentCount: admin.firestore.FieldValue.increment(1),
-    });
+    const postRef = db.collection("forums").doc(postId);
+    const postDoc = await postRef.get();
+    if (postDoc.exists) {
+      const currentCount = postDoc.data().commentCount || 0;
+      await postRef.update({ commentCount: currentCount + 1 });
+    }
     
     res.json({ id: commentRef.id, ...newComment });
   } catch (error) {
@@ -275,7 +261,7 @@ app.post("/api/forum/posts/:postId/comments", async (req, res) => {
   }
 });
 
-// ===== MIGRATION ENDPOINT (Run once to censor all existing posts and comments) =====
+// ===== MIGRATION ENDPOINT =====
 app.post("/api/forum/migrate", async (req, res) => {
   if (!db) {
     return res.status(503).json({ error: "Firebase Admin not initialized" });
@@ -360,5 +346,6 @@ app.post("/api/forum/migrate", async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log("Backend listening on http://localhost:" + PORT);
+  console.log(`✅ Backend listening on http://localhost:${PORT}`);
+  console.log(`📝 Firebase Admin: ${db ? '✅ Connected' : '❌ Not connected'}`);
 });
