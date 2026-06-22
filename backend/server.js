@@ -9,17 +9,40 @@ import cors from "cors";
 import { searchAnimeThemes } from "./services/animethemes.js";
 import { initializeApp, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Load service account key
+let serviceAccount;
+try {
+  const keyPath = join(__dirname, 'serviceAccountKey.json');
+  const keyFile = readFileSync(keyPath, 'utf8');
+  serviceAccount = JSON.parse(keyFile);
+  console.log('✅ Service account key loaded');
+} catch (error) {
+  console.error('❌ Failed to load service account key:', error.message);
+  // Continue without Firebase Admin - some features won't work
+}
 
 // Initialize Firebase Admin SDK
-// You need to download your service account key from Firebase Console
-// and save it as backend/serviceAccountKey.json
-import serviceAccount from "./serviceAccountKey.json" assert { type: "json" };
-
-initializeApp({
-  credential: cert(serviceAccount),
-});
-
-const db = getFirestore();
+let db;
+try {
+  if (serviceAccount) {
+    initializeApp({
+      credential: cert(serviceAccount),
+    });
+    db = getFirestore();
+    console.log('✅ Firebase Admin initialized');
+  } else {
+    console.warn('⚠️ Firebase Admin not initialized - forum endpoints will not work');
+  }
+} catch (error) {
+  console.error('❌ Firebase Admin initialization failed:', error.message);
+}
 
 const PORT = process.env.PORT || 4000;
 
@@ -85,7 +108,7 @@ function censorText(text) {
 
 // ===== HEALTH CHECK =====
 app.get("/api/health", (req, res) => {
-  res.json({ ok: true });
+  res.json({ ok: true, firebase: !!db });
 });
 
 // ===== SEARCH =====
@@ -147,10 +170,14 @@ app.get("/api/search", async (req, res) => {
   }
 });
 
-// ===== FORUM ENDPOINTS =====
+// ===== FORUM ENDPOINTS (only work if Firebase Admin is initialized) =====
 
 // Create a forum post
 app.post("/api/forum/posts", async (req, res) => {
+  if (!db) {
+    return res.status(503).json({ error: "Firebase Admin not initialized" });
+  }
+  
   try {
     const { uid, username, photoURL, songTitle, animeName, content } = req.body;
     
@@ -183,6 +210,10 @@ app.post("/api/forum/posts", async (req, res) => {
 
 // Update a forum post
 app.put("/api/forum/posts/:postId", async (req, res) => {
+  if (!db) {
+    return res.status(503).json({ error: "Firebase Admin not initialized" });
+  }
+  
   try {
     const { postId } = req.params;
     const { content } = req.body;
@@ -207,6 +238,10 @@ app.put("/api/forum/posts/:postId", async (req, res) => {
 
 // Add a comment
 app.post("/api/forum/posts/:postId/comments", async (req, res) => {
+  if (!db) {
+    return res.status(503).json({ error: "Firebase Admin not initialized" });
+  }
+  
   try {
     const { postId } = req.params;
     const { uid, username, photoURL, content } = req.body;
@@ -242,10 +277,13 @@ app.post("/api/forum/posts/:postId/comments", async (req, res) => {
 
 // ===== MIGRATION ENDPOINT (Run once to censor all existing posts and comments) =====
 app.post("/api/forum/migrate", async (req, res) => {
+  if (!db) {
+    return res.status(503).json({ error: "Firebase Admin not initialized" });
+  }
+  
   try {
     const { secret } = req.body;
     
-    // Simple secret to prevent accidental runs
     if (secret !== "migrate_all_content") {
       return res.status(401).json({ error: "Unauthorized" });
     }
@@ -255,7 +293,6 @@ app.post("/api/forum/migrate", async (req, res) => {
     let postsUpdated = 0;
     let commentsUpdated = 0;
     
-    // Get all forum posts
     const postsSnapshot = await db.collection("forums").get();
     
     for (const postDoc of postsSnapshot.docs) {
@@ -263,7 +300,6 @@ app.post("/api/forum/migrate", async (req, res) => {
       let needsUpdate = false;
       const updates = {};
       
-      // Censor post content
       if (post.content) {
         const censored = censorText(post.content);
         if (censored !== post.content) {
@@ -272,7 +308,6 @@ app.post("/api/forum/migrate", async (req, res) => {
         }
       }
       
-      // Add createdAt if missing
       if (!post.createdAt) {
         updates.createdAt = new Date().toISOString();
         needsUpdate = true;
@@ -284,7 +319,6 @@ app.post("/api/forum/migrate", async (req, res) => {
         console.log(`✅ Updated post: ${postDoc.id}`);
       }
       
-      // Get all comments for this post
       const commentsSnapshot = await postDoc.ref.collection("comments").get();
       
       for (const commentDoc of commentsSnapshot.docs) {
@@ -292,7 +326,6 @@ app.post("/api/forum/migrate", async (req, res) => {
         let commentNeedsUpdate = false;
         const commentUpdates = {};
         
-        // Censor comment content
         if (comment.content) {
           const censored = censorText(comment.content);
           if (censored !== comment.content) {
@@ -301,7 +334,6 @@ app.post("/api/forum/migrate", async (req, res) => {
           }
         }
         
-        // Add createdAt if missing
         if (!comment.createdAt) {
           commentUpdates.createdAt = new Date().toISOString();
           commentNeedsUpdate = true;
